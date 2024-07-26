@@ -9,12 +9,20 @@ unitDefs = {
         "atk": ATK_ADJACENT,
         "cost": 1000,
         "dmg": {
-            "INF": (55,55),
-            "MCH": (45,65),
-            "RCN": (12,70),
-            "TNK": (5,75),
-            "ART": (15,90),
-        }
+            UNIT_INF: 55,
+            UNIT_MCH: 45,
+            UNIT_RCN: 12,
+            UNIT_TNK: 5,
+            UNIT_APC: 12,
+            UNIT_ART: 15,
+        },
+        "scene": [
+            (11,11),
+            (1,14),
+            (14,21),
+            (4,24),
+        ],
+        "weptype": WEPTYPE_RAPID,
     },
     UNIT_MCH: {
         "name": "Mech",
@@ -24,12 +32,19 @@ unitDefs = {
         "atk": ATK_ADJACENT,
         "cost": 3000,
         "dmg": {
-            "INF": (65,45),
-            "MCH": (55,55),
-            "RCN": (85,65),
-            "TNK": (55,70),
-            "ART": (70,85),
-        }
+            UNIT_INF: 65,
+            UNIT_MCH: 55,
+            UNIT_RCN: 85,
+            UNIT_TNK: 55,
+            UNIT_APC: 75,
+            UNIT_ART: 70,
+        },
+        "scene": [
+            (4,12),
+            (12,19),
+            (1,23),
+        ],
+        "weptype": WEPTYPE_CANNON,
     },
     UNIT_RCN: {
         "name": "Recon",
@@ -39,12 +54,18 @@ unitDefs = {
         "atk": ATK_ADJACENT,
         "cost": 4000,
         "dmg": {
-            "INF": (70,12),
-            "MCH": (65,85),
-            "RCN": (35,35),
-            "TNK": (6,85),
-            "ART": (45,80),
-        }
+            UNIT_INF: 70,
+            UNIT_MCH: 65,
+            UNIT_RCN: 35,
+            UNIT_TNK: 6,
+            UNIT_APC: 45,
+            UNIT_ART: 45,
+        },
+        "scene": [
+            (10,13),
+            (2,21),
+        ],
+        "weptype": WEPTYPE_RAPID,
     },
     UNIT_TNK: {
         "name": "Tank",
@@ -54,12 +75,18 @@ unitDefs = {
         "atk": ATK_ADJACENT,
         "cost": 7000,
         "dmg": {
-            "INF": (75,5),
-            "MCH": (70,55),
-            "RCN": (85,6),
-            "TNK": (55,55),
-            "ART": (70,70),
-        }
+            UNIT_INF: 75,
+            UNIT_MCH: 70,
+            UNIT_RCN: 85,
+            UNIT_TNK: 55,
+            UNIT_APC: 75,
+            UNIT_ART: 70,
+        },
+        "scene": [
+            (7,11),
+            (1,23),
+        ],
+        "weptype": WEPTYPE_CANNON,
     },
     UNIT_APC: {
         "name": "APC",
@@ -69,12 +96,17 @@ unitDefs = {
         "atk": ATK_NONE,
         "cost": 5000,
         "dmg": {
-            "INF": (0,12),
-            "MCH": (0,75),
-            "RCN": (0,45),
-            "TNK": (0,75),
-            "ART": (0,70),
-        }
+            UNIT_INF: 0,
+            UNIT_MCH: 0,
+            UNIT_RCN: 0,
+            UNIT_TNK: 0,
+            UNIT_APC: 0,
+            UNIT_ART: 0,
+        },
+        "scene": [
+            (3,17),    
+        ],
+        "weptype": WEPTYPE_NONE,
     },
     UNIT_ART: {
         "name": "Cannon",
@@ -84,13 +116,19 @@ unitDefs = {
         "atk": ATK_ARTILLERY,
         "cost": 6000,
         "dmg": {
-            "INF": (90,15),
-            "MCH": (85,70),
-            "RCN": (80,45),
-            "TNK": (70,70),
-            "ART": (75,75),
-        }
-    },
+            UNIT_INF: 90,
+            UNIT_MCH: 85,
+            UNIT_RCN: 80,
+            UNIT_TNK: 70,
+            UNIT_APC: 70,
+            UNIT_ART: 75,
+        },
+        "scene": [
+            (6,13),
+            (2,20),
+        ],
+        "weptype": WEPTYPE_CANNON,
+    }
 }
 
 tileTypeDefs = {

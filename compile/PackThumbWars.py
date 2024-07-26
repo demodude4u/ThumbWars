@@ -105,11 +105,13 @@ pack.writeImage("tiles_tall.png",(8,12))
 pack.writeImage("units.png",(10,10))
 pack.writeImage("tile_cursor.png")
 pack.writeImage("explosion.png",(20,20))
-pack.writeImage("health.png",(9,9),masked=False)
+pack.writeImage("health.png",(7,7))
 pack.writeImage("move.png",(8,8))
 pack.writeImage("capture.png",(14,25))
 pack.writeImage("capture_tiles.png",(15,32))
 pack.writeImage("point.png")
+pack.writeImage("damage.png",(5,7),masked=False)
+pack.writeImage("status.png",(7,7))
 
 pack.writeImage("info_units.png",(16,16))
 pack.writeImage("info_tiles.png",(15,16),masked=False)
@@ -119,6 +121,7 @@ pack.writeImage("info_star.png",(14,14))
 
 pack.writeImage("battle_faces.png",(37,37),masked=False)
 pack.writeImage("battle_numbers.png",(13,11))
+pack.writeImage("battle_bar.png")
 
 pack.cd = "../"
 

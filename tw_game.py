@@ -10,6 +10,9 @@ from tw_assets import *
 from tw_state import *
 from tw_draw import *
 
+import math
+import random
+
 mapUnits.append(Unit(2,10,UNIT_ART,TEAM_P1))
 mapUnits.append(Unit(5,11,UNIT_INF,TEAM_P1))
 mapUnits.append(Unit(2,3,UNIT_RCN,TEAM_P1))
@@ -33,7 +36,7 @@ for unit in mapUnits:
     for player in players:
         player.notifyUnitSpawn(unit)
 
-display.setFPS(15)
+display.setFPS(20)
 
 cCamX, cCamY = 0, 0
 tCamX, tCamY = 0, 0
@@ -62,6 +65,7 @@ player = None
 moveSteps = []
 unloadOptions = []
 attackOptions = []
+battleDeaths = []
 
 def showPlayerStartScreen(day, team, funds, income, unitsDestroyed):
     display.fill(0)
@@ -113,7 +117,7 @@ def showPlayerStartScreen(day, team, funds, income, unitsDestroyed):
         display.drawFilledRectangle(0,33,72,7,0b00)
         display.drawText("Funds:"+str(int(fundsAnim)),0,33,0b11)
         display.update()
-    display.setFPS(15)
+    display.setFPS(20)
     display.update()
     display.drawFilledRectangle(0,33,72,7,0b00)
     display.drawText("Funds:"+str(funds+income),0,33,0b01)
@@ -165,7 +169,6 @@ def showInfoScreen(unit, tileID):
     if unit is not None:
         unitDef = unitDefs[unit.id]
         unitName = unitDef["name"]
-        unitHealth = unit.health
         unitColor = 0b01 if (unit.team == turn) else 0b11
         display.drawText(unitName,52-len(unitName)*4,32,0b01)
         display.drawRectangle(52,2,20,36,unitColor)
@@ -174,7 +177,7 @@ def showInfoScreen(unit, tileID):
         draw_blitMaskedMirroredFrame(bmpInfoUnits,54,20,mx,0,unit.id-1)
         f = (unit.team-TEAM_P1) * 2 + (0 if (unit.team == turn) else 1)
         draw_blitMaskedFrame(bmpInfoPlayer,55,5,f)
-        f = max(1,unitHealth//10)
+        f = (unit.health+9)//10
         draw_blitMaskedFrame(bmpBattleNumbers,38,14,f)
         
     # TODO Show capture points
@@ -189,7 +192,7 @@ def showPlayerMenu(day, team, funds):
     display.setFont("/lib/font3x5.bin", 3, 5, 1)
     display.drawText("Player "+str(team-1)+" - Day "+str(day),0,0,0b01)
     display.drawText("Funds:"+str(funds),0,35,0b01)
-    options = ["View Map","End Turn"]
+    options = ["End Turn"]
     selection = 0
     display.setFont("/lib/font5x7.bin", 5, 7, 1)
     while True:
@@ -259,7 +262,7 @@ def showBuyMenu(day, team, funds):
                 f += 0 if ((frame % 8) < 4) else 1
             else:
                 f += 2
-            draw_blitMaskedMirroredFrame(bmpUnits,0,y-1,10,10,-1,mx,0,bmpUnits[2],f)
+            draw_blitMaskedMirroredFrame(bmpUnits,0,y-1,mx,0,f)
             display.drawText(unitDef["name"],36,y+1,fg)
             y += 8
         display.setFont("/lib/font5x7.bin", 5, 7, 1)
@@ -326,7 +329,7 @@ def showCaptureAnimation(tileID, captureHealth, captureAmount):
         
     x1, y1 = 10, 9
         
-    display.setFPS(30)
+    display.setFPS(40)
     display.setFont("/lib/font8x8.bin", 8, 8, 1)
         
     display.fill(0b00)
@@ -416,7 +419,7 @@ def showCaptureAnimation(tileID, captureHealth, captureAmount):
         for _ in range(30):
             display.update()
     
-    display.setFPS(15)
+    display.setFPS(20)
     
 def checkUnloadOptions(col, row):
     ret = []
@@ -438,17 +441,161 @@ def checkUnloadOptions(col, row):
             ret.append((checkCol, checkRow))
     return ret
     
-def checkAttackOptions(col, row, team, atk, moved):
+def calcDamagePercent(atkID, atkHealth, atkLuck, defID, defHealth, defTileID):
+    baseDamage = unitDefs[atkID]["dmg"][defID]
+    atkVHP = (atkHealth+9)//10
+    defStars = tileTypeDefs[tileDefs[defTileID]["type"]]["def"]
+    defVHP = (defHealth+9)//10
+    dmgPercentRaw = max(0, (baseDamage + atkLuck) * (atkVHP/10) * ((100 - defStars * defVHP)/100))
+    # round up to nearest 0.05, and then down to int
+    dmgPercent = int(((dmgPercentRaw*100+4)//5)//20)
+    return dmgPercent
+    
+def checkAttackOptions(unit, moveCol, moveRow):
+    atk = unitDefs[unit.id]["atk"]
     ret = []
-    for unit in mapUnits:
-        if unit.team == team:
+    moved = moveCol != unit.col or moveRow != unit.row
+    for checkUnit in mapUnits:
+        if checkUnit.team == unit.team:
             continue
-        dist = abs(col-unit.col)+abs(row-unit.row)
+        dist = abs(moveCol-checkUnit.col)+abs(moveRow-checkUnit.row)
+        attackable = False
         if atk == ATK_ADJACENT and dist == 1:
-            ret.append(unit)
+            attackable = True
         elif atk == ATK_ARTILLERY and not moved and 2 <= dist <= 3:
-            ret.append(unit)
+            attackable = True
+        if attackable:
+            tileID = mapTiles[checkUnit.row*mapCols+checkUnit.col]
+            dmgPercent = calcDamagePercent(unit.id,unit.health,0,checkUnit.id,checkUnit.health,tileID)
+            ret.append((checkUnit,dmgPercent))
     return ret
+    
+def showBattleAnim(atkUnit, atkTileID, atkDamage, defUnit, defTileID, defDamage):
+    atkScene = unitDefs[atkUnit.id]["scene"]
+    atkWepType = unitDefs[atkUnit.id]["weptype"]
+    defScene = unitDefs[defUnit.id]["scene"]
+    defWepType = unitDefs[defUnit.id]["weptype"]
+    
+    atkCount = math.ceil((atkUnit.health / 100) * len(atkScene))
+    defCount = math.ceil((defUnit.health / 100) * len(defScene))
+    
+    stars = tileTypeDefs[tileDefs[defTileID]["type"]]["def"]
+    
+    display.setFPS(30)
+    
+    atkHitDelay = 20 if atkWepType == WEPTYPE_CANNON else 5
+    if atkUnit.id == UNIT_ART:
+        atkHitDelay += 15
+    defHitDelay = 20 if defWepType == WEPTYPE_CANNON else 5
+    defResponseTime = 15
+    
+    atkShoot = 15
+    atkHit = atkShoot + atkHitDelay
+    defShoot = atkHit + 10
+    defHit = defShoot + defHitDelay
+    
+    atkCHealth = atkUnit.health
+    defCHealth = defUnit.health
+    atkTHealth = atkCHealth-defDamage
+    defTHealth = defCHealth-atkDamage
+    
+    atkKilled = atkCount - math.ceil((atkTHealth / 100) * len(atkScene))
+    defKilled = defCount = math.ceil((defTHealth / 100) * len(defScene))
+    
+    S_SLIDE = const(0)
+    S_SHOOT = const(1)
+    S_DIE = const(2)
+    
+    unitStates = []
+    for x, y in atkScene:
+        shootStart = atkShoot + random.randrange(5)
+        dieStart = defHit + random.randrange(5)
+        unitStates.append(([S_SLIDE,0],x,y,atkUnit,atkWepType,shootStart,dieStart))
+    for x, y in defScene:
+        shootStart = defShoot + random.randrange(5)
+        dieStart = atkHit + random.randrange(5)
+        unitStates.append(([S_SLIDE,0],x,y,defUnit,defWepType,shootStart,dieStart))
+        
+    atkDeadCounter = 0
+    defDeadCounter = 0
+    for frame in range(120):
+        
+        display.fill(0b00)
+        
+        for data, x, y, unit, wepType, shootStart, dieStart in unitStates:
+            state, sf = data[0], data[1]
+
+            f = unit.id-1
+
+            if state == S_SLIDE:
+                if sf < 10:
+                    x -= 1 << (9-sf)
+                elif frame >= shootStart:
+                    data[0], data[1] = S_SHOOT, 0
+                
+            elif state == S_SHOOT:
+                if wepType == WEPTYPE_RAPID:
+                    if sf < 16:
+                        if ((sf%4) < 1):
+                            f += 6
+                        elif ((sf%4) < 2):
+                            x -= 1
+                            f += 6
+                elif wepType == WEPTYPE_CANNON:
+                    if sf < 1:
+                        f += 6                        
+                    elif sf < 3:
+                        x -= 1
+                        f += 6
+                if frame >= dieStart:
+                    if unit == atkUnit and atkDeadCounter < atkKilled:
+                        atkDeadCounter += 1
+                        data[0], data[1] = S_DIE, 0
+                    elif unit == defUnit and defDeadCounter < defKilled:
+                        defDeadCounter += 1
+                        data[0], data[1] = S_DIE, 0
+            elif state == S_DIE:
+                if sf < 10:
+                    x -= 1 << sf
+                else:
+                    x -= 50
+                    
+            if unit == atkUnit:
+                draw_blitMaskedFrame(bmpInfoUnits,x,y,f)
+            else:
+                x = 56 - x
+                draw_blitMaskedMirroredFrame(bmpInfoUnits,x,y,1,0,f)
+                
+            data[1] += 1 # sf
+        
+        if frame > atkHit:
+            atkCHealth -= 2
+            if atkCHealth < atkTHealth:
+                atkCHealth = atkTHealth
+        
+        if frame > defHit:
+            defCHealth -= 2
+            if defCHealth < defTHealth:
+                defCHealth = defTHealth
+        
+        draw_blitMaskedFrame(bmpBattleBar,0,0,0)
+        display.drawFilledRectangle(3,2,(atkCHealth+4)//5,3,0b01)
+        draw_blitMaskedFrame(bmpBattleNumbers,2,7,(atkCHealth+9)//10)
+        
+        draw_blitMaskedMirroredFrame(bmpBattleBar,45,0,1,0,0)
+        display.drawFilledRectangle(68-(defCHealth+4)//5,2,(defCHealth+4)//5,3,0b01)
+        draw_blitMaskedFrame(bmpBattleNumbers,57,7,(defCHealth+9)//10)
+
+        display.drawFilledRectangle(35,0,2,40,0b01)
+        draw_blitMaskedFrame(bmpInfoStar,29,-1,stars)
+        
+        display.update()
+    
+    display.setFPS(20)
+    
+# TODO add unit help page
+# TODO add tile help page
+# TODO screen wipes?
 
 while True:
     frame += 1
@@ -594,7 +741,7 @@ while True:
                         if moveUnit.id in [UNIT_INF,UNIT_MCH] and unit.id == UNIT_APC and unit.carry is None:
                             validMove = True
                             break
-                        if unit.id != moveUnit.id or unit.health == 100:
+                        if unit.id != moveUnit.id or unit.health > 90:
                             validMove = False
                             break
             if validMove:
@@ -642,7 +789,7 @@ while True:
             if moveCol == unit.col and moveRow == unit.row:
                 occupied = True
                 occUnit = unit
-                if unit.id == moveUnit.id and unit.health < 100:
+                if unit.id == moveUnit.id and unit.health <= 90:
                     options.append("Join")
                 break
         
@@ -664,7 +811,7 @@ while True:
         unitAtk = unitDefs[moveUnit.id]["atk"]
         if not occupied and unitAtk != ATK_NONE:
             unitMoved = (len(moveSteps) > 1)
-            attackOptions = checkAttackOptions(moveCol, moveRow, turn, unitAtk, unitMoved)
+            attackOptions = checkAttackOptions(moveUnit, moveCol, moveRow)
             if len(attackOptions) > 0:
                 options.append("Attack")
         
@@ -730,9 +877,9 @@ while True:
         elif act == "Attack":
             pointIdx = 0
             pointOptions = []
-            for unit in attackOptions:
+            for unit, dmgPercent in attackOptions:
                 col, row = unit.col, unit.row
-                pointOptions.append((col*8+4,row*6-1,unit))
+                pointOptions.append((col*8+4,row*6-1,(unit, dmgPercent)))
             cPointX, cPointY, _ = pointOptions[0]
             tPointX, tPointY = cPointX, cPointY
             state, frame = SM_ATTACK_SELECT, 0
@@ -740,7 +887,7 @@ while True:
     elif state == SM_CAPTURE_ANIM:
         tileID = mapTiles[moveRow*mapCols+moveCol]
         captureHealth = 20-moveUnit.capture
-        captureAmount = max(1,min(captureHealth,moveUnit.health//10))
+        captureAmount = max(1,min(captureHealth,(moveUnit.health+9)//10))
         showCaptureAnimation(tileID, captureHealth, captureAmount)
         moveUnit.capture += captureAmount
         if moveUnit.capture == 20:
@@ -793,8 +940,7 @@ while True:
         if buttonB.justPressed():
             state, frame = SM_UNIT_MENU, 0
         elif buttonA.justPressed():
-            attackedUnit = pointOptions[pointIdx][2]
-            # TODO
+            attackedUnit, dmgPercent = pointOptions[pointIdx][2]
             moveUnit.col = moveCol
             moveUnit.row = moveRow
             moveUnit.ready = False
@@ -804,9 +950,44 @@ while True:
             cursorCol = moveCol
             cursorRow = moveRow
             updateCursorUnit = True
-            state, frame = SM_TILE_SELECT, 0
+            state, frame = SM_BATTLE_ANIM, 0
         
         tPointX, tPointY, _ = pointOptions[pointIdx]
+        
+    elif state == SM_BATTLE_ANIM:
+        
+        atkUnit = moveUnit
+        atkID = atkUnit.id
+        atkHealth = atkUnit.health
+        atkLuck = random.randrange(10)
+        atkTileID = mapTiles[atkUnit.row*mapCols+atkUnit.col]
+        atkAtk = unitDefs[atkUnit.id]["atk"]
+        
+        defUnit = attackedUnit
+        defID = defUnit.id
+        defHealth = defUnit.health
+        defLuck = random.randrange(10)
+        defTileID = mapTiles[defUnit.row*mapCols+defUnit.col]
+        defAtk = unitDefs[defUnit.id]["atk"]
+            
+        atkDamage = calcDamagePercent(atkID, atkHealth, atkLuck, defID, defHealth, defTileID)
+        if defHealth > atkDamage and atkAtk == ATK_ADJACENT and defAtk == ATK_ADJACENT: # Counter-attack
+            defDamage = calcDamagePercent(defID, defHealth-atkDamage, defLuck, atkID, atkHealth, atkTileID)
+        else:
+            defDamage = 0
+        
+        showBattleAnim(atkUnit, atkTileID, atkDamage, defUnit, defTileID, defDamage)
+        
+        atkUnit.health = max(0, atkUnit.health - defDamage)
+        defUnit.health = max(0, defUnit.health - atkDamage)
+        
+        battleDeaths = []
+        if atkUnit.health == 0:
+            battleDeaths.append(atkUnit)
+        if defUnit.health == 0:
+            battleDeaths.append(defUnit)
+            
+        state, frame = SM_BATTLE_RESULT_ANIM, 0
         
     
     display.fill(0b00)
@@ -885,8 +1066,6 @@ while True:
             f, mx, my = moveDraws[(m1,m2)]
             draw_blitMaskedMirroredFrame(bmpMove,x,y-1,mx,my,f)
         
-    # TODO show city being captured when cursored over
-    # TODO show APC is carrying unit when cursored over
     if state == SM_TILE_SELECT and ((frame % 10) < 5):
         x = cCursorX - sx
         y = cCursorY - sy
@@ -902,6 +1081,18 @@ while True:
         f = (moveUnit.id-1)*3
         draw_blitMaskedMirroredFrame(bmpUnits,moveAnimX-sx-1,moveAnimY-sy-3,mx,0,f)
         
+    if state == SM_ATTACK_SELECT:
+        x = cPointX - sx
+        y = cPointY - sy + 8
+        unit, dmgPercent = pointOptions[pointIdx][2]
+        dmgStr = str(dmgPercent)
+        x -= ((len(dmgStr)+1)*5)//2
+        for i in range(len(dmgStr)):
+            f = ord(dmgStr[i])-ord('0')
+            draw_blitFrame(bmpDamage,x,y,f)
+            x += 5
+        draw_blitFrame(bmpDamage,x,y,10)
+    
     if state == SM_MOVE_ANIM:
         if moveAnimIdx == len(moveSteps):
             state, frame = SM_UNIT_MENU, 0
@@ -927,9 +1118,27 @@ while True:
             x = (cCursorX-9) - sx
         else:
             x = (cCursorX+8) - sx
-        y = (cCursorY-1) - sy
-        f = max(1,unit.health//10)-1
-        draw_blitFrame(bmpHealth, x, y, f)
+        if cursorUnit.carry is not None:
+            y = (cCursorY-4) - sy
+            draw_blitMaskedFrame(bmpStatus, x, y+8, 1)
+        elif cursorUnit.capture > 0:
+            y = (cCursorY-4) - sy
+            draw_blitMaskedFrame(bmpStatus, x, y+8, 0)
+        else:
+            y = (cCursorY-1) - sy
+        f = max(1,(unit.health+9)//10)-1
+        draw_blitMaskedFrame(bmpHealth, x, y, f)
+        
+    if state == SM_BATTLE_RESULT_ANIM:
+        i = frame // 20
+        if i < len(battleDeaths):
+            unit = battleDeaths[i]
+            if 10 <= i < 19:
+                x = unit.col * 8 - sm - 6
+                y = unit.row * 6 - sm - 14
+                draw_blitMaskedFrame(bmpExplosion, x, y, i-10)
+        else:
+            state, frame = SM_TILE_SELECT, 0
     
     display.update()
     

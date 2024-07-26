@@ -46,11 +46,13 @@ with PackReader("/Games/ThumbWars/data.pack") as pack:
     bmpUnits = pack.readBitmapAndMask()
     bmpTileCursor = pack.readBitmapAndMask()
     bmpExplosion = pack.readBitmapAndMask()
-    bmpHealth = pack.readBitmap()
+    bmpHealth = pack.readBitmapAndMask()
     bmpMove = pack.readBitmapAndMask()
     bmpCapture = pack.readBitmapAndMask()
     bmpCaptureTiles = pack.readBitmapAndMask()
     bmpPoint = pack.readBitmapAndMask()
+    bmpDamage = pack.readBitmap()
+    bmpStatus = pack.readBitmapAndMask()
     
     bmpInfoUnits = pack.readBitmapAndMask()
     bmpInfoTiles = pack.readBitmap()
@@ -60,3 +62,4 @@ with PackReader("/Games/ThumbWars/data.pack") as pack:
     
     bmpBattleFaces = pack.readBitmap()
     bmpBattleNumbers = pack.readBitmapAndMask()
+    bmpBattleBar = pack.readBitmapAndMask()
